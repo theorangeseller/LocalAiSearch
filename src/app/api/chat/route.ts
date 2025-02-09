@@ -71,7 +71,9 @@ Give your complete answer within a single tag pair.`
         // Get the initial confidence check
         try {
           while (true) {
-            const { done, value } = await reader?.read();
+            const result = await reader?.read();
+            if (!result) break;
+            const { done, value } = result;
             if (done) break;
 
             const chunk = new TextDecoder().decode(value);
@@ -160,7 +162,9 @@ Give your complete answer within a single tag pair.`
             let hasShownAnswer = false;
 
             while (true) {
-              const { done, value } = await finalReader?.read();
+              const result = await finalReader?.read();
+              if (!result) break;
+              const { done, value } = result;
               if (done) break;
 
               const chunk = new TextDecoder().decode(value);
