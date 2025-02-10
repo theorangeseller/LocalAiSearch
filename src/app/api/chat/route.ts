@@ -65,16 +65,15 @@ Give your complete answer within a single tag pair.`
 
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = initialResponse.body?.getReader();
-        let initialAnswer = '';
-
-        // Get the initial confidence check
         try {
+          const reader = initialResponse.body?.getReader();
+          let initialAnswer = '';
+
+          // Get the initial confidence check
           while (true) {
             const result = await reader?.read();
-            if (!result) break;
-            const { done, value } = result;
-            if (done) break;
+            if (!result || result.done) break;
+            const { value } = result;
 
             const chunk = new TextDecoder().decode(value);
             const lines = chunk.split('\n').filter(Boolean);
@@ -92,7 +91,6 @@ Give your complete answer within a single tag pair.`
             }
           }
 
-          // Check if the AI is unsure and needs to search
           if (initialAnswer.includes('<unsure>')) {
             // Perform web search using the same origin as the request
             const searchResponse = await fetch(`${baseUrl}/api/search`, {
@@ -159,13 +157,11 @@ Give your complete answer within a single tag pair.`
             let thinking = '';
             let answer = '';
             let isThinking = false;
-            let hasShownAnswer = false;
 
             while (true) {
               const result = await finalReader?.read();
-              if (!result) break;
-              const { done, value } = result;
-              if (done) break;
+              if (!result || result.done) break;
+              const { value } = result;
 
               const chunk = new TextDecoder().decode(value);
               const lines = chunk.split('\n').filter(Boolean);
@@ -176,29 +172,27 @@ Give your complete answer within a single tag pair.`
                   if (json.message?.content) {
                     const content = json.message.content;
                     
+                    if (!controller.desiredSize) continue; // Skip if stream is closed
+                    
                     if (content.includes('<think>')) {
                       isThinking = true;
                       thinking = '';
                     } else if (content.includes('</think>')) {
                       isThinking = false;
-                      if (thinking) {
-                        controller.enqueue(
-                          encoder.encode(
-                            JSON.stringify({ type: 'thinking', content: thinking }) + '\n'
-                          )
-                        );
-                      }
+                      controller.enqueue(
+                        encoder.encode(
+                          JSON.stringify({ type: 'thinking', content: thinking }) + '\n'
+                        )
+                      );
                     } else if (isThinking) {
                       thinking += content;
                     } else {
-                      if (!isThinking && !hasShownAnswer) {
-                        answer += content;
-                        controller.enqueue(
-                          encoder.encode(
-                            JSON.stringify({ type: 'answer', content: answer }) + '\n'
-                          )
-                        );
-                      }
+                      answer += content;
+                      controller.enqueue(
+                        encoder.encode(
+                          JSON.stringify({ type: 'answer', content: answer }) + '\n'
+                        )
+                      );
                     }
                   }
                 } catch (error) {
